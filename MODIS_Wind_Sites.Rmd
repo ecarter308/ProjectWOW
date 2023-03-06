@@ -1,0 +1,179 @@
+---
+title: "MODIS_Wind_Sites"
+output: html_document
+date: "2023-03-02"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(reticulate)
+
+# xr <- import('xarray')
+
+# arcpy3_dir <- 'C:/Program Files/ArcGIS/Pro/bin/Python'
+# system2(file.path(arcpy3_dir, 'Scripts', 'proenv.bat'))
+# 
+# use_python("C:/Users/ec308/AppData/Local/ESRI/conda/envs/env859-py3")
+```
+
+```{python}
+## Connect to OpenDAP servers with Xarray
+
+## Subset in time/space and make maps and time series plots
+
+## Download subset data as NC files
+
+
+import arcpy
+ 
+
+import xarray as xr
+
+import matplotlib.pyplot as plt
+
+ 
+
+ 
+
+## OpenDAP/THREDDS from JPL for MODIS SST
+
+## https://thredds.jpl.nasa.gov/thredds/catalog.html
+
+ 
+
+sst_dataset = xr.open_dataset("https://thredds.jpl.nasa.gov/thredds/dodsC/ncml_aggregation/OceanTemperature/modis/aqua/11um/4km/aggregate__MODIS_AQUA_L3_SST_THERMAL_DAILY_4KM_DAYTIME_V2019.0.ncml")
+
+sst_dataset
+
+ 
+
+## SST Mean Map, 2 years as an example
+
+sst_subset = sst_dataset.sst.sel(lon=slice(-80,-65), lat=slice(45,25), time=slice('2021-07-01','2021-08-01'))
+
+sst_subset.mean(dim="time").plot()
+
+plt.show()
+
+sst_subset.to_netcdf("sst_test.nc")
+
+ 
+
+## SST Time Series
+
+sst_subset = sst_dataset.sst.sel(lon=slice(-80,-75), lat=slice(35,25), time=slice('2021-07-01','2021-08-01'))
+
+sst_subset.mean(dim=["lat","lon"]).plot.line()
+
+plt.show()
+
+ 
+
+ 
+
+ 
+
+## OpenDAP/THREDDS from NOAA Coast Watch for VIIRS CHLA
+
+## https://coastwatch.noaa.gov/erddap/index.html
+
+## https://coastwatch.noaa.gov/erddap/griddap/noaacwNPPVIIRSSQchlaDaily.html
+
+ 
+
+ 
+
+chla_dataset = xr.open_dataset("https://coastwatch.noaa.gov/erddap/griddap/noaacwNPPVIIRSSQchlaDaily")
+
+ 
+
+```
+
+
+```{r}
+library(sf)
+library(raster)
+library(ncdf4)
+library(janitor)
+
+setwd("Z:/Members/Maps/ec308_sites_project_WOW/Data/MODIS")
+
+wea = st_read('Z:/Members/Data/AtlanticWindEnergySites.shp') #all Atlantic wind energy sites
+area_ID <- make_clean_names(as.list(wea$AREA_ID)) #create a list of Area Id
+
+wint_sst <- brick("Z:/Members/Maps/ec308_sites_project_WOW/Data/MODIS/sst_wint_months.nc", varname="sst", package="raster")
+spr_sst <- tmp_raster <- brick("Z:/Members/Maps/ec308_sites_project_WOW/Data/MODIS/sst_spr_months.nc", varname="sst", package="raster")
+sum_sst <- tmp_raster <- brick("Z:/Members/Maps/ec308_sites_project_WOW/Data/MODIS/sst_sum_months.nc", varname="sst", package="raster")
+fall_sst <- tmp_raster <- brick("Z:/Members/Maps/ec308_sites_project_WOW/Data/MODIS/sst_fall_months.nc", varname="sst", package="raster")
+
+sst_month <- list(wint_sst, spr_sst, sum_sst, fall_sst)
+names(sst_month) <- c("wint_sst", "spr_sst", "sum_sst", "fall_sst")
+
+for (i in 1:lenth)
+
+
+
+#sst_months <- list.files("Z:/Members/Maps/ec308_sites_project_WOW/Data/MODIS") #list of ncdf files
+
+#my_files <- list()
+
+
+## brick method
+extract_stats <- function(temp_raster,output){
+ # tmp_raster <- brick(my_file, varname="sst", package="raster")
+
+  output <- extract(tmp_raster, wea, method='simple') #extract data within wind energy sites
+  names(output) <- area_ID #rename list with Area ID
+
+  site_stats <- data.frame(matrix(ncol = 5, nrow = 47)) #create empty data frame
+  colnames(site_stats) <- c('Area_ID', 'Min', 'Max', 'Mean','St_dev') #name dataframe columns
+  site_stats$Area_ID <- area_ID #fill in Area ID column
+
+#for loop to get min, max, mean, and std for every Area ID
+  for (i in 1:length(area_ID)) {
+    site_stats$Min[i] <- min(output[[i]], na.rm = T)
+    site_stats$Max[i] <- max(output[[i]], na.rm = T)
+    site_stats$Mean[i] <- mean(output[[i]], na.rm = T)
+    site_stats$St_dev[i] <- sd(output[[i]], na.rm = T)
+  }
+}
+
+tmp_raster <- brick(sst_months[1], varname="sst", package="raster")
+
+#extract_stats(wint_sst)
+
+
+
+
+
+
+tmp_raster <- brick("Z:/Members/Maps/ec308_sites_project_WOW/Data/MODIS/sst_wint_months.nc", varname="sst", package="raster")
+
+output <- extract(tmp_raster, wea, method='simple') #extract data within wind energy sites
+names(output) <- area_ID #rename list with Area ID
+
+site_stats <- data.frame(matrix(ncol = 5, nrow = 47)) #create empty data frame
+colnames(site_stats) <- c('Area_ID', 'Min', 'Max', 'Mean','St_dev') #name dataframe columns
+site_stats$Area_ID <- area_ID #fill in Area ID column
+
+#for loop to get min, max, mean, and std for every Area ID
+for (i in 1:length(area_ID)) {
+  site_stats$Min[i] <- min(output[[i]], na.rm = T)
+  site_stats$Max[i] <- max(output[[i]], na.rm = T)
+  site_stats$Mean[i] <- mean(output[[i]], na.rm = T)
+  site_stats$St_dev[i] <- sd(output[[i]], na.rm = T)
+}
+
+```
+
+```{r}
+#plot a single day
+plot(tmp_raster[[27]], main="Single Day", ylim=c(33,43), xlim=c(-80,-70))
+plot(st_geometry(wea), add=TRUE)
+
+print(output)
+attributes(output[[1]])
+
+View(output[[10]])
+```
+
